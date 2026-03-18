@@ -26,7 +26,9 @@
  (depends
   (ocaml
    (>= 4.08))
-  dune)
+  dune
+  (benchmark
+   :with-test))
  (depopts
   unix
   lwt
