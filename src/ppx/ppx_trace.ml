@@ -17,22 +17,9 @@ let expand_let ~ctxt (var : [ `Var of label loc | `Unit ]) (name : string) body
       | `Var v -> ppat_var ~loc:v.loc v
       | `Unit -> ppat_var ~loc { loc; txt = "_trace_span" }
     in
-    let var_exp =
-      match var with
-      | `Var v -> pexp_ident ~loc:v.loc { txt = lident v.txt; loc = v.loc }
-      | `Unit -> [%expr _trace_span]
-    in
     [%expr
-      let [%p var_pat] =
-        Trace_core.enter_span ~__FILE__ ~__LINE__ [%e estring ~loc name]
-      in
-      try
-        let res = [%e body] in
-        Trace_core.exit_span [%e var_exp];
-        res
-      with exn ->
-        Trace_core.exit_span [%e var_exp];
-        raise exn])
+      Trace_core.with_span ~__FILE__ ~__LINE__ [%e estring ~loc name]
+        (fun [%p var_pat] -> [%e body])])
 
 let extension_let =
   Extension.V3.declare "trace" Extension.Context.expression
@@ -81,17 +68,8 @@ let expand_top_let ~ctxt rec_flag (vbs : _ list) =
               ] )
       | _ ->
         [%expr
-          let _trace_span =
-            Trace_core.enter_span ~__FILE__ ~__LINE__ __FUNCTION__
-          in
-          match [%e e] with
-          | res ->
-            Trace_core.exit_span _trace_span;
-            res
-          | exception exn ->
-            let bt = Stdlib.Printexc.get_raw_backtrace () in
-            Trace_core.exit_span _trace_span;
-            Stdlib.Printexc.raise_with_backtrace exn bt]
+          Trace_core.with_span ~__FILE__ ~__LINE__ __FUNCTION__ (fun _ ->
+              [%e e])]
     in
 
     let tr_vb (vb : value_binding) : value_binding =
